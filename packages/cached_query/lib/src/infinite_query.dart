@@ -235,7 +235,7 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
         _emit();
         return;
       }
-      //* NOTE: Custom code to force all page to invalid
+      //* NOTE: Custom code to force all page to invalidate
       final pageData = _state.data;
       var newState = _state.copyWith(
         data: pageData == null

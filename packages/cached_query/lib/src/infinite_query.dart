@@ -242,8 +242,10 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
             ? [firstPage]
             : await Future.wait(
                 List.generate(
-                  pageData.length,
-                  (index) => _queryFn(index as Arg),
+                  pageData.length + 1,
+                  (index) {
+                    return _queryFn(index + 1 as Arg);
+                  },
                 ),
               ),
         lastPage: firstPage,

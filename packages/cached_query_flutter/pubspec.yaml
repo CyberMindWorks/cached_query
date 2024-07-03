@@ -12,7 +12,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cached_query: ^2.0.4
+  cached_query:
+    git:
+      url: https://github.com/CyberMindWorks/cached_query.git
+      path: packages/cached_query
+      ref: f69fd4da492c69f29a5baeb441551d740a659b16
   connectivity_plus: ^6.0.3
 
 dev_dependencies:

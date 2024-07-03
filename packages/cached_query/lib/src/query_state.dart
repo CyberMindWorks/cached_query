@@ -15,6 +15,23 @@ enum QueryStatus {
   initial,
 }
 
+/// Extension methods for [QueryStatus]
+extension QueryStatusExt on QueryStatus {
+  /// Printable string for the status.
+  String get displayString {
+    switch (this) {
+      case QueryStatus.loading:
+        return 'Loading';
+      case QueryStatus.success:
+        return 'Success';
+      case QueryStatus.error:
+        return 'Error';
+      case QueryStatus.initial:
+        return 'Initial';
+    }
+  }
+}
+
 /// {@template queryState}
 /// [QueryState] holds the current state of a [Query]
 ///
@@ -79,4 +96,16 @@ class QueryState<T> implements StateBase {
   @override
   int get hashCode =>
       runtimeType.hashCode ^ data.hashCode ^ status.hashCode ^ error.hashCode;
+
+  @override
+  String toString() {
+    return '''
+QueryState{
+  timeCreated: $timeCreated, 
+  status: $status, 
+  error: $error
+  data: $data, 
+}
+''';
+  }
 }

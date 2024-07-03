@@ -104,19 +104,19 @@ class Query<T> extends QueryBase<T, QueryState<T>> {
 
   @override
   Future<QueryState<T>> _getResult({bool forceRefetch = false}) async {
-    if (!_stale &&
+    if (!stale &&
         !forceRefetch &&
         _state.status != QueryStatus.error &&
-        _state.data != null &&
-        (_state.timeCreated
-            .add(config.refetchDuration)
-            .isAfter(DateTime.now()))) {
+        _state.data != null) {
       _emit();
       return _state;
     }
-    _currentFuture ??= _fetch();
-    await _currentFuture;
-    _stale = false;
+    final shouldRefetch = config.shouldRefetch?.call(this, false) ?? true;
+    if (shouldRefetch || _state.status == QueryStatus.initial || forceRefetch) {
+      _currentFuture ??= _fetch();
+      await _currentFuture;
+      _staleOverride = false;
+    }
     return _state;
   }
 
@@ -126,11 +126,15 @@ class Query<T> extends QueryBase<T, QueryState<T>> {
     try {
       if (_state.data == null && config.storeQuery) {
         // try to get any data from storage if the query has no data
-        final dynamic dataFromStorage = await _fetchFromStorage();
-        if (dataFromStorage is T && dataFromStorage != null) {
-          _setState(_state.copyWith(data: dataFromStorage));
+        final storedData = await _fetchFromStorage();
+        if (storedData != null) {
+          _setState(_state.copyWith(data: storedData));
           // Emit the data from storage
           _emit();
+          final shouldRefetch = config.shouldRefetch?.call(this, true) ?? true;
+          if (!shouldRefetch) {
+            return;
+          }
         }
       }
 
@@ -147,7 +151,7 @@ class Query<T> extends QueryBase<T, QueryState<T>> {
       );
       if (config.storeQuery) {
         // save to local storage if exists
-        _saveToStorage<T>();
+        _saveToStorage();
       }
     } catch (e, trace) {
       if (_onError != null) {

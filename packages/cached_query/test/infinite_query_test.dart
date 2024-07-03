@@ -407,9 +407,93 @@ void main() async {
       );
       await query.result;
       expect(storage.store.length, 1);
-      expect(storage.store[key], jsonEncode([0]));
+      expect(
+        storage.store.firstWhere((element) => element.key == key).data,
+        [0],
+      );
     });
 
+    test("Should not return if expired", () async {
+      const key = "expired";
+      const expiredData = "expiredData";
+      const newData = "newData";
+      const storageDuration = Duration(minutes: 1);
+      storage
+        ..deleteAll()
+        ..put(
+          StoredQuery(
+            key: key,
+            data: [expiredData],
+            storageDuration: storageDuration,
+            createdAt: DateTime.now().subtract(
+              const Duration(days: 1),
+            ),
+          ),
+        );
+
+      final query = InfiniteQuery<String, int>(
+        key: key,
+        config: QueryConfig(storageDuration: storageDuration),
+        getNextArg: (state) => 1,
+        queryFn: (p) => Future.value(newData),
+      );
+
+      final firstData = await query.stream.firstWhere(
+        (element) => element.data != null && element.data!.isNotEmpty,
+      );
+      expect(firstData.data?.first, newData);
+    });
+
+    test("Should return stored if not expired", () async {
+      const key = "notExpired";
+      const data = "data";
+      const storageDuration = Duration(minutes: 1);
+      storage
+        ..deleteAll()
+        ..put(
+          StoredQuery(
+            key: key,
+            data: [data],
+            storageDuration: storageDuration,
+            createdAt: DateTime.now(),
+          ),
+        );
+
+      final query = InfiniteQuery<String, int>(
+        key: key,
+        getNextArg: (state) => 1,
+        config: QueryConfig(storageDuration: storageDuration),
+        queryFn: (p) => Future.value("newData"),
+      );
+
+      final firstData = await query.stream.firstWhere(
+        (element) => element.data != null && element.data!.isNotEmpty,
+      );
+      expect(firstData.data?.first, data);
+    });
+    test("Should store using serializer if available", () async {
+      const key = "store";
+      const convertedData = [1000];
+      storage.deleteAll();
+
+      final query = InfiniteQuery<int, int>(
+        key: key,
+        queryFn: repo.getPage,
+        config: QueryConfig(
+          storageSerializer: (dynamic json) => convertedData,
+        ),
+        getNextArg: (state) {
+          if (state.length == 0) return 0;
+          return state.length + 1;
+        },
+      );
+      await query.result;
+      expect(storage.store.length, 1);
+      expect(
+        storage.store.firstWhere((element) => element.key == key).data,
+        convertedData,
+      );
+    });
     test("Should not store infinite query if specified", () async {
       storage.deleteAll();
       const key = "store";
@@ -430,8 +514,13 @@ void main() async {
         () async {
       const key = "getInitial";
       const initialData = [3];
+      final storedQuery = StoredQuery(
+        key: key,
+        data: initialData,
+        createdAt: DateTime.now(),
+      );
       // Make sure the storage has initial data
-      storage.put(key, item: initialData);
+      storage.put(storedQuery);
       final query = InfiniteQuery<int, int>(
         key: key,
         queryFn: repo.getPage,
@@ -457,15 +546,70 @@ void main() async {
       );
     });
 
-    test("Should serialize data if a serialize function is provided", () async {
+    test("Should deserialize data provided", () async {
       const key = "serialize";
+      final storedQuery = StoredQuery(
+        key: key,
+        data: jsonEncode([Serializable(MockStorage.data)]),
+        createdAt: DateTime.now(),
+      );
       // Make sure the storage has initial data
-      storage.put(key, item: jsonEncode([Serializable(MockStorage.data)]));
+      storage.put(storedQuery);
       final query = InfiniteQuery<Serializable, int>(
         key: key,
         queryFn: (i) => Future.value(Serializable("$i")),
         config: QueryConfig(
+          storageDeserializer: (dynamic json) {
+            json = jsonDecode(json as String);
+            return Serializable.listFromJson(json as List<dynamic>);
+          },
+        ),
+        getNextArg: (state) {
+          if (state.length == 0) return 0;
+          return state.length + 1;
+        },
+      );
+
+      int count = 1;
+      final output = <dynamic>[];
+      query.stream.listen(
+        expectAsync1(
+          (event) {
+            if (event.data != null && event.data!.isNotEmpty) {
+              output.add(event.data!);
+            }
+            if (output.length == 1 || count == 2) {
+              expect(output[0], isA<List<Serializable>>());
+              expect(
+                (output[0] as List<Serializable>).first.name,
+                MockStorage.data,
+              );
+            }
+            count++;
+          },
+          max: 10,
+          count: 2,
+        ),
+      );
+    });
+    test(
+        "[DEPRECIATED] Should serialize data if a serialize function is provided",
+        () async {
+      const key = "serialize";
+      final storedQuery = StoredQuery(
+        key: key,
+        data: jsonEncode([Serializable(MockStorage.data)]),
+        createdAt: DateTime.now(),
+      );
+      // Make sure the storage has initial data
+      storage.put(storedQuery);
+      final query = InfiniteQuery<Serializable, int>(
+        key: key,
+        queryFn: (i) => Future.value(Serializable("$i")),
+        config: QueryConfig(
+          // ignore: deprecated_member_use_from_same_package
           serializer: (dynamic json) {
+            json = jsonDecode(json as String);
             return Serializable.listFromJson(json as List<dynamic>);
           },
         ),
@@ -513,11 +657,46 @@ void main() async {
       );
       await query.result;
       final res2 = await query.refetch();
-      expect((jsonDecode(storage.store[key]!) as List).first, count);
       expect(
-        (jsonDecode(storage.store[key]!) as List).first,
+        (storage.store.firstWhere((e) => e.key == key).data as List).first,
+        count,
+      );
+      expect(
+        (storage.store.firstWhere((e) => e.key == key).data as List).first,
         res2.data!.first,
       );
+    });
+
+    test("Can prevent queryFn being fired after fetch from storage", () async {
+      int numCalls = 0;
+      const key = "query_no_fetch_storage";
+      const data = 1000;
+      storage.deleteAll();
+      storage.store.add(
+        StoredQuery(
+          key: key,
+          data: [data],
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      final query = InfiniteQuery<int, int>(
+        key: key,
+        getNextArg: (state) => 2,
+        queryFn: (_) {
+          numCalls++;
+          return Future.value(1);
+        },
+        config: QueryConfig(
+          shouldRefetch: (query, afterStorage) => !afterStorage,
+          refetchDuration: Duration.zero,
+        ),
+      );
+
+      final res = await query.result;
+
+      expect(numCalls, 0);
+      expect(res.data, [data]);
     });
   });
   group("Side Effects", () {
@@ -595,6 +774,51 @@ void main() async {
       final res = await query.getNextPage();
       expect(count, 1);
       expect(res?.error, error);
+    });
+  });
+
+  group("Should refetch", () {
+    tearDownAll(cachedQuery.deleteCache);
+    test("query should never refresh if returning false", () async {
+      int numCalls = 0;
+      final query = InfiniteQuery(
+        key: "infinite_query_no_refetch",
+        getNextArg: (state) => 1,
+        queryFn: (_) {
+          numCalls++;
+          return Future.value(1);
+        },
+        config: QueryConfig(
+          shouldRefetch: (query, _) => false,
+          refetchDuration: Duration.zero,
+        ),
+      );
+
+      await query.result;
+      await query.result;
+
+      expect(numCalls, 1);
+    });
+
+    test("can still force refetch", () async {
+      int numCalls = 0;
+      final query = InfiniteQuery(
+        key: "infinite_query_force_refetch",
+        getNextArg: (state) => 1,
+        queryFn: (_) {
+          numCalls++;
+          return Future.value(1);
+        },
+        config: QueryConfig(
+          shouldRefetch: (query, _) => false,
+          refetchDuration: Duration.zero,
+        ),
+      );
+
+      await query.result;
+      await query.refetch();
+
+      expect(numCalls, 2);
     });
   });
 }

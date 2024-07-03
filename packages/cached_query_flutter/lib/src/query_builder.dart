@@ -3,6 +3,16 @@ import 'dart:async';
 import 'package:cached_query/cached_query.dart';
 import 'package:flutter/material.dart';
 
+/// {@template queryBuilderCallback}
+/// Called on each widget build.
+///
+/// Passes [BuildContext], [QueryState].
+/// {@endtemplate}
+typedef QueryBuilderCallback<T> = Widget Function(
+  BuildContext context,
+  QueryState<T> state,
+);
+
 /// {@template queryBuilderCondition}
 /// This function is being called everytime the query registered in the [QueryBuilder] receives new updates
 /// and let's you control when the [_QueryBuilderState.build] method should be called
@@ -19,10 +29,8 @@ class QueryBuilder<T> extends StatefulWidget {
   /// The [Query] to used to update the ui.
   final Query<T>? query;
 
-  /// Called on each widget build.
-  ///
-  /// Passes [BuildContext], [QueryState].
-  final Widget Function(BuildContext context, QueryState<T> state) builder;
+  /// {@macro queryBuilderCallback}
+  final QueryBuilderCallback<T> builder;
 
   /// The key of the query to build.
   ///

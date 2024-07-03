@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_query_flutter/cached_query_flutter.dart';
 import 'package:cached_storage/cached_storage.dart';
 import 'package:flutter/material.dart';
@@ -10,13 +12,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   CachedQuery.instance.configFlutter(
     storage: await CachedStorage.ensureInitialized(),
-    observer: Observer(),
+    observers: [
+      Observer(),
+      QueryLoggingObserver(colors: !Platform.isIOS),
+    ],
   );
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   // This widget is the root of your application.
   @override

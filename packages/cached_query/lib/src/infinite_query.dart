@@ -135,8 +135,9 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
 
   /// Get the next page in an [InfiniteQuery] and cache the result.
   Future<InfiniteQueryState<T>?> getNextPage() async {
-    if (state.hasReachedMax) return null;
-    _currentFuture ??= _fetchNextPage();
+    final arg = _getNextArg(state);
+    if (arg == null) return null;
+    _currentFuture ??= _fetchNextPage(arg: arg);
     await _currentFuture;
     return state;
   }
@@ -164,20 +165,21 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
 
   @override
   Future<InfiniteQueryState<T>> _getResult({bool forceRefetch = false}) async {
-    if (!_stale &&
+    if (!stale &&
         !forceRefetch &&
         _state.status != QueryStatus.error &&
         _state.data != null &&
-        _state.data!.isNotEmpty &&
-        (_state.timeCreated
-            .add(config.refetchDuration)
-            .isAfter(DateTime.now()))) {
+        _state.data!.isNotEmpty) {
       _emit();
       return _state;
     }
-    _currentFuture ??= _refetch();
-    await _currentFuture;
-    _stale = false;
+
+    final shouldRefetch = config.shouldRefetch?.call(this, false) ?? true;
+    if (shouldRefetch || _state.status == QueryStatus.initial) {
+      _currentFuture ??= _refetch();
+      await _currentFuture;
+      _staleOverride = false;
+    }
     return _state;
   }
 
@@ -185,16 +187,19 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
     if ((_state.data.isNullOrEmpty || _state.status == QueryStatus.initial) &&
         config.storeQuery) {
       // try to get any data from storage if the query has no data
-      final dataFromStorage = await _fetchFromStorage() as List<dynamic>?;
+      final dataFromStorage = await _fetchFromStorage();
       if (dataFromStorage != null) {
         _setState(
           _state.copyWith(
-            data: dataFromStorage.cast<T>(),
+            data: dataFromStorage,
             status: QueryStatus.success,
           ),
         );
-        // Emit the data from storage
         _emit();
+        final shouldRefetch = config.shouldRefetch?.call(this, true) ?? true;
+        if (!shouldRefetch) {
+          return;
+        }
       }
     }
     if (state.data.isNullOrEmpty || _state.status == QueryStatus.initial) {
@@ -231,7 +236,12 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
         if (_onSuccess != null) {
           _onSuccess!(firstPage);
         }
-        _setState(_state.copyWith(status: QueryStatus.success));
+        _setState(
+          _state.copyWith(
+            status: QueryStatus.success,
+            timeCreated: DateTime.now(),
+          ),
+        );
         _emit();
         return;
       }
@@ -276,7 +286,7 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
       );
       if (config.storeQuery) {
         // save to local storage if exists
-        _saveToStorage<List<T>>();
+        _saveToStorage();
       }
     } catch (e, trace) {
       if (_onError != null) {
@@ -334,7 +344,7 @@ class InfiniteQuery<T, Arg> extends QueryBase<List<T>, InfiniteQueryState<T>> {
       );
       if (config.storeQuery) {
         // save to local storage if exists
-        _saveToStorage<List<T>>();
+        _saveToStorage();
       }
     } catch (e, trace) {
       if (_onError != null) {

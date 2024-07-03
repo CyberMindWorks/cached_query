@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:cached_query_flutter/cached_query_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -10,8 +9,11 @@ InfiniteQuery<List<PostModel>, int> getPosts() {
     key: 'posts',
     config: QueryConfigFlutter(
       refetchOnResume: true,
+      storageDuration: const Duration(seconds: 10),
+      storeQuery: true,
       refetchDuration: const Duration(seconds: 2),
-      serializer: (dynamic postJson) {
+      shouldRefetch: (state, fromStorage) => true,
+      storageDeserializer: (dynamic postJson) {
         return (postJson as List<dynamic>)
             .map(
               (dynamic page) => PostModel.listFromJson(page as List<dynamic>),
@@ -28,9 +30,9 @@ InfiniteQuery<List<PostModel>, int> getPosts() {
         'https://jsonplaceholder.typicode.com/posts?_limit=10&_page=$arg',
       );
       final res = await http.get(uri);
-      if (Random().nextInt(1000) % 4 == 0) {
-        throw "A random error has occurred ⚠️";
-      }
+      // if (Random().nextInt(1000) % 8 == 0) {
+      //   throw "A random error has occurred ⚠️";
+      // }
       return Future.delayed(
         const Duration(seconds: 1),
         () => PostModel.listFromJson(
@@ -80,7 +82,7 @@ Mutation<PostModel, PostModel> createPost() {
       query.update(
         (old) => [
           [newPost, ...?old?.first],
-          ...?old?.sublist(1).toList()
+          ...?old?.sublist(1),
         ],
       );
 

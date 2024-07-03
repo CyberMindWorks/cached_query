@@ -1,3 +1,55 @@
+## 2.1.1
+
+ - Update a dependency to the latest release.
+
+## 2.1.0
+
+ - **FEAT**: listener and consumer widgets ([#36](https://github.com/D-James-GH/cached_query/issues/36)). ([01595f4a](https://github.com/D-James-GH/cached_query/commit/01595f4a225e708587f78b14b05d33e6d6fdc336))
+
+## 2.0.3
+
+ - Update a dependency to the latest release.
+
+## 2.0.2
+
+ - **FIX**: deps update for flutter 3.22 ([#31](https://github.com/D-James-GH/cached_query/issues/31)). ([1fbc044b](https://github.com/D-James-GH/cached_query/commit/1fbc044b7b925066cd4101dc2eefd14c10e801aa))
+
+## 2.0.1
+
+ - Update a dependency to the latest release.
+
+## 2.0.0
+
+ - Release 2.0.0
+ - **FIX**: lints. ([d3677368](https://github.com/D-James-GH/cached_query/commit/d3677368d916e349e50e35e118b7dce4f8619c42))
+ - Graduate package to a stable release. See pre-releases prior to this version for changelog entries.
+
+## 2.0.0-dev.3
+
+ - **FEAT**: add devtools. ([ef621f1f](https://github.com/D-James-GH/cached_query/commit/ef621f1f8a4830d75c9d0cdd2b6b40e9efa8a7cf))
+
+## 2.0.0-dev.2
+
+ - **FEAT**: add devtools package ([#24](https://github.com/D-James-GH/cached_query/issues/24)). ([43ba85ea](https://github.com/D-James-GH/cached_query/commit/43ba85ea3c65debd006a457dfef6aadf9130ef3b))
+ - **DOCS**: update for storageSerializer and storageDeserializer. ([0b4c4e5f](https://github.com/D-James-GH/cached_query/commit/0b4c4e5fb4a5e005d8e21e48e2ff748036065b47))
+
+## 2.0.0-dev.1
+
+ - **FEAT**: added storageSerializer and storageDeserializer to the QueryConfig to allow for more flexible storage ([#20](https://github.com/D-James-GH/cached_query/issues/20)). ([4aca144d](https://github.com/D-James-GH/cached_query/commit/4aca144dd49589309d49969f9f11ce42eeff87ce))
+
+## 2.0.0-dev.0
+
+> Note: This release has breaking changes.
+
+ - **FEAT**: added query logging observer. ([a95896e7](https://github.com/D-James-GH/cached_query/commit/a95896e78e661ac19abf47794253d287e4d9878e))
+ - **BREAKING** **FEAT**: return mutation state from mutate function. ([02e29ed0](https://github.com/D-James-GH/cached_query/commit/02e29ed0f5aa53ec874df5468fabe783c7ccc0f0))
+
+## 1.0.1
+
+ - **FIX**: analysis options, for examples. ([0f28d977](https://github.com/D-James-GH/cached_query/commit/0f28d97775c78f9c6972fbd0bd9aee9d13446e7e))
+ - **FIX**: package updates. ([0a934e2f](https://github.com/D-James-GH/cached_query/commit/0a934e2f5c99231e9d3644a40dae8d52bca5f814))
+ - **FIX**: better generic type names. ([1e7fb516](https://github.com/D-James-GH/cached_query/commit/1e7fb5165cbc1fb864b7dc61a41d38ab35cd8fc6))
+
 ## 1.0.0
 
  - Graduate package to a stable release. See pre-releases prior to this version for changelog entries.

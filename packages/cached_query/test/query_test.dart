@@ -212,11 +212,83 @@ void main() {
       storage.deleteAll();
       final query = Query<String>(
         key: key,
-        queryFn: () async => Future.value(data),
+        queryFn: () => Future.value(data),
       );
       await query.result;
       expect(storage.store.length, 1);
-      expect(storage.store[key], data);
+      expect(storage.store.firstWhere((e) => e.key == key).data, data);
+    });
+
+    test("Should not return if expired", () async {
+      const key = "expired";
+      const expiredData = "expiredData";
+      const newData = "newData";
+      const storageDuration = Duration(minutes: 1);
+      storage
+        ..deleteAll()
+        ..put(
+          StoredQuery(
+            key: key,
+            data: expiredData,
+            storageDuration: storageDuration,
+            createdAt: DateTime.now().subtract(
+              const Duration(days: 1),
+            ),
+          ),
+        );
+
+      final query = Query<String>(
+        key: key,
+        config: QueryConfig(storageDuration: storageDuration),
+        queryFn: () => Future.value(newData),
+      );
+
+      final firstData =
+          await query.stream.firstWhere((element) => element.data != null);
+      expect(firstData.data, newData);
+    });
+
+    test("Should return if not expired", () async {
+      const key = "notExpired";
+      const data = "data";
+      const storageDuration = Duration(minutes: 1);
+      storage
+        ..deleteAll()
+        ..put(
+          StoredQuery(
+            key: key,
+            data: data,
+            storageDuration: storageDuration,
+            createdAt: DateTime.now(),
+          ),
+        );
+
+      final query = Query<String>(
+        key: key,
+        config: QueryConfig(storageDuration: storageDuration),
+        queryFn: () => Future.value("newData"),
+      );
+
+      final firstData =
+          await query.stream.firstWhere((element) => element.data != null);
+      expect(firstData.data, data);
+    });
+
+    test("Should use storageSerializer to store the query", () async {
+      const key = "store";
+      const data = "someData";
+      const convertedData = "convertedData";
+      storage.deleteAll();
+      final query = Query<String>(
+        key: key,
+        queryFn: () => Future.value(data),
+        config: QueryConfig(
+          storageSerializer: (_) => convertedData,
+        ),
+      );
+      await query.result;
+      expect(storage.store.length, 1);
+      expect(storage.store.firstWhere((e) => e.key == key).data, convertedData);
     });
 
     test("Should not store query if specified", () async {
@@ -234,8 +306,13 @@ void main() {
 
     test("Should get initial data from storage before queryFn", () async {
       const key = "getInitial";
+      final storedQuery = StoredQuery(
+        key: key,
+        data: MockStorage.data,
+        createdAt: DateTime.now(),
+      );
       // Make sure the storage has initial data
-      storage.put(key, item: MockStorage.data);
+      storage.put(storedQuery);
       final query = Query<String>(
         key: key,
         queryFn: () async => Future.value("data"),
@@ -257,19 +334,60 @@ void main() {
       );
     });
 
-    test("Should serialize data if a serialize function is provided", () async {
+    test("Should deserialize data if provided", () async {
       const key = "serialize";
-      // Make sure the storage has initial data
-      storage.put(
-        key,
-        item: {
-          key: {"name": MockStorage.data}
+      final storedQuery = StoredQuery(
+        key: key,
+        data: {
+          key: {"name": MockStorage.data},
         },
+        createdAt: DateTime.now(),
       );
+      // Make sure the storage has initial data
+      storage.put(storedQuery);
       final query = Query<Serializable>(
         key: key,
         queryFn: () async => Future.value(Serializable("Fetched")),
         config: QueryConfig(
+          storageDeserializer: (dynamic json) =>
+              Serializable.fromJson(json as Map<String, dynamic>),
+        ),
+      );
+
+      final output = <dynamic>[];
+      query.stream.listen(
+        expectAsync1(
+          (event) {
+            if (event.data != null) {
+              output.add(event.data!);
+            }
+            if (output.length == 1) {
+              expect(output[0], isA<Serializable>());
+              expect((output[0] as Serializable).name, MockStorage.data);
+            }
+          },
+          max: 3,
+        ),
+      );
+    });
+    test(
+        "[DEPRECATED] Should serialize data if a serialize function is provided",
+        () async {
+      const key = "serialize";
+      final storedQuery = StoredQuery(
+        key: key,
+        data: {
+          key: {"name": MockStorage.data},
+        },
+        createdAt: DateTime.now(),
+      );
+      // Make sure the storage has initial data
+      storage.put(storedQuery);
+      final query = Query<Serializable>(
+        key: key,
+        queryFn: () async => Future.value(Serializable("Fetched")),
+        config: QueryConfig(
+          // ignore: deprecated_member_use_from_same_package
           serializer: (dynamic json) =>
               Serializable.fromJson(json as Map<String, dynamic>),
         ),
@@ -303,8 +421,38 @@ void main() {
       );
       await query.result;
       final res2 = await query.refetch();
-      expect(storage.store[key], count.toString());
-      expect(storage.store[key], res2.data.toString());
+      expect(
+        storage.store.firstWhere((element) => element.key == key).data,
+        count,
+      );
+      expect(
+        storage.store.firstWhere((element) => element.key == key).data,
+        res2.data,
+      );
+    });
+
+    test("Can prevent queryFn being fired after fetch from storage", () async {
+      int numCalls = 0;
+      const key = "query_no_fetch_storage";
+      const data = {"test": "storage_data"};
+      storage.store[0] =
+          StoredQuery(key: key, data: data, createdAt: DateTime.now());
+      final query = Query<Map<String, dynamic>>(
+        key: key,
+        queryFn: () {
+          numCalls++;
+          return Future.value({"test": "data"});
+        },
+        config: QueryConfig(
+          shouldRefetch: (query, afterStorage) => !afterStorage,
+          refetchDuration: Duration.zero,
+        ),
+      );
+
+      final res = await query.result;
+
+      expect(numCalls, 0);
+      expect(res.data, data);
     });
   });
   group("Errors", () {
@@ -359,5 +507,48 @@ void main() {
     );
 
     expect(query.config.shouldRethrow, true);
+  });
+
+  group("Should refetch", () {
+    tearDownAll(cachedQuery.deleteCache);
+    test("query should never refresh if returning false", () async {
+      int numCalls = 0;
+      final query = Query(
+        key: "should_refetch_false",
+        queryFn: () {
+          numCalls++;
+          return Future.value("");
+        },
+        config: QueryConfig(
+          shouldRefetch: (query, _) => false,
+          refetchDuration: Duration.zero,
+        ),
+      );
+
+      await query.result;
+      await query.result;
+
+      expect(numCalls, 1);
+    });
+
+    test("can still force refetch", () async {
+      int numCalls = 0;
+      final query = Query(
+        key: "force_refetch_should_refetch",
+        queryFn: () {
+          numCalls++;
+          return Future.value("");
+        },
+        config: QueryConfig(
+          shouldRefetch: (query, _) => false,
+          refetchDuration: Duration.zero,
+        ),
+      );
+
+      await query.result;
+      await query.refetch();
+
+      expect(numCalls, 2);
+    });
   });
 }

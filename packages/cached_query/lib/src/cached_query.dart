@@ -19,8 +19,11 @@ part "query_base.dart";
 /// Similar to List.where.
 typedef WhereCallback = bool Function(QueryBase<dynamic, dynamic>);
 
-/// Used to serialize the query data when fetched from local storage.
+/// Used to serialize or deserialize the query from storage.
 typedef Serializer = dynamic Function(dynamic json);
+
+// /// Used to serialize or deserialize the query data when fetched from local storage.
+// typedef StorageConverter = dynamic Function(dynamic data);
 
 /// Used to match multiple queries.
 typedef KeyFilterFunc = bool Function(Object unencodedKey, String key);
@@ -36,7 +39,7 @@ class CachedQuery {
   static final instance = CachedQuery._();
 
   /// The current query observer.
-  QueryObserver observer = _DefaultQueryObserver();
+  List<QueryObserver> observers = [];
 
   bool _configSet = false;
 
@@ -92,7 +95,7 @@ class CachedQuery {
   void config({
     StorageInterface? storage,
     QueryConfig? config,
-    QueryObserver? observer,
+    List<QueryObserver>? observers,
   }) {
     assert(_configSet == false, "Config defaults must only be set once.");
     if (_configSet) return;
@@ -102,7 +105,14 @@ class CachedQuery {
     }
     _storage = storage;
     _configSet = true;
-    this.observer = observer ?? _DefaultQueryObserver();
+    if (observers != null) {
+      this.observers = observers;
+    }
+
+    assert(() {
+      this.observers.add(DevtoolsObserver());
+      return true;
+    }());
   }
 
   /// Get a [Query] at a given key.
@@ -221,7 +231,9 @@ class CachedQuery {
     bool deleteStorage = false,
     KeyFilterFunc? filterFn,
   }) {
-    observer.onQueryDeletion(key);
+    for (final ob in observers) {
+      ob.onQueryDeletion(key);
+    }
     if (filterFn != null) {
       final queries = _filterQueryKey(filter: filterFn);
       for (final query in queries) {
@@ -277,7 +289,9 @@ class CachedQuery {
   /// Shouldn't normally need to add a query manually. Queries are automatically
   /// added to the cache when they are constructed.
   void addQuery(QueryBase<dynamic, dynamic> query) {
-    observer.onQueryCreation(query);
+    for (final ob in observers) {
+      ob.onQueryCreation(query);
+    }
     _queryCache[query.key] = query;
   }
 
@@ -289,5 +303,3 @@ class CachedQuery {
         .toList();
   }
 }
-
-class _DefaultQueryObserver extends QueryObserver {}

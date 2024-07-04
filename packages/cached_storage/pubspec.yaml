@@ -17,7 +17,7 @@ dependencies:
     git:
       url: https://github.com/CyberMindWorks/cached_query.git
       path: packages/cached_query
-      ref: f69fd4da492c69f29a5baeb441551d740a659b16
+      ref: 3a72b04a4bb8856950bd4cc4fbe73e84c0046ac5
   sqflite: ^2.3.3+1
   path: ^1.8.3
 
